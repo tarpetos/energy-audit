@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import flet as ft
 
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from .constants import GRAPHS_PATH, TABLES_PATH
 
@@ -64,14 +64,19 @@ class AppUI(ft.UserControl):
             spacing=5,
         )
 
-        self.graph_legend = ft.Text()
-        self.legend_container = ft.Row(
-            controls=[self.graph_legend],
+        self.legend_table = ft.DataTable()
+        self.legend_average_value = ft.Text()
+        self.average_value_row = ft.Row(
+            controls=[self.legend_average_value],
             alignment=ft.MainAxisAlignment.CENTER,
+        )
+        self.legend_container = ft.Column(
+            [self.average_value_row, self.legend_table],
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
         page.on_resize = self._on_window_resize
-        self._sorting_order = True
+        self._is_ascending = True
 
     def _on_window_resize(self, event: ft.ControlEvent) -> None:
         sizes = event.data.split(",")
@@ -89,11 +94,40 @@ class AppUI(ft.UserControl):
         self.graph_image.tooltip = None
         return None
 
+    def _load_legend_table(self, file_name: str) -> None:
+        csv_average_path = os.path.abspath(
+            os.path.join(TABLES_PATH, "with_average", f"{file_name}.csv")
+        )
+        csv_default_path = os.path.abspath(
+            os.path.join(TABLES_PATH, f"{file_name}.csv")
+        )
+        if os.path.exists(csv_average_path):
+            df = pd.read_csv(csv_average_path, header=0)
+        else:
+            df = pd.read_csv(csv_default_path, header=0)
+
+        df = df.round(4)
+        self._build_table(self.legend_table, df)
+
+    @staticmethod
+    def _build_table(
+        table: ft.DataTable,
+        df: pd.DataFrame,
+        on_sort: Optional[Callable] = None,
+    ) -> None:
+        table.columns = [
+            ft.DataColumn(ft.Text(col_name), on_sort=on_sort) for col_name in df.columns
+        ]
+        table.rows = [
+            ft.DataRow(cells=[ft.DataCell(ft.Text(value)) for value in row])
+            for row in df.values
+        ]
+
     def _sort_cols(self, event: ft.DataColumnSortEvent, df: pd.DataFrame) -> None:
         df_sorted = df.sort_values(
-            by=df.columns[event.column_index], ascending=self._sorting_order
+            by=df.columns[event.column_index], ascending=self._is_ascending
         )
-        self._sorting_order = not self._sorting_order
+        self._is_ascending = not self._is_ascending
         self.data_table.rows = [
             ft.DataRow(cells=[ft.DataCell(ft.Text(value)) for value in row])
             for row in df_sorted.values
@@ -111,8 +145,8 @@ class AppUI(ft.UserControl):
 
     def _on_selector_change(self, event: ft.ControlEvent) -> None:
         self.graph_image.src = GRAPHS_PATH
-        self.graph_legend.value = ""
-        self.data_table.columns = self.data_table.row = None
+        self.legend_average_value.value = ""
+        self.data_table.columns = self.legend_table.columns = None
         self.pie_charts_view.controls = None
 
         if self.graph_selector.value == self.INITIAL_DATA:
@@ -120,16 +154,9 @@ class AppUI(ft.UserControl):
                 os.path.join(TABLES_PATH, f"{self.INITIAL_DATA}.csv")
             )
             df = pd.read_csv(csv_path, header=0)
-            self.data_table.columns = [
-                ft.DataColumn(
-                    ft.Text(col_name), on_sort=lambda e: self._sort_cols(e, df)
-                )
-                for col_name in df.columns
-            ]
-            self.data_table.rows = [
-                ft.DataRow(cells=[ft.DataCell(ft.Text(value)) for value in row])
-                for row in df.values
-            ]
+            self._build_table(
+                self.data_table, df, on_sort=lambda e: self._sort_cols(e, df)
+            )
         elif self.graph_selector.value == self.PIE_CHART:
             graph_list = os.listdir(GRAPHS_PATH)
             pie_charts_list = sorted(
@@ -143,16 +170,18 @@ class AppUI(ft.UserControl):
                         border_radius=ft.border_radius.all(20),
                     )
                 )
+            self._load_legend_table(f"{self.PIE_CHART}_values")
         else:
             self.graph_image.src = os.path.join(
                 GRAPHS_PATH, f"{self.graph_selector.value}.png"
             )
             self.average_value = self._calculate_average(self.graph_selector.value)
-            self.graph_legend.value = (
+            self.legend_average_value.value = (
                 f"Середнє значення: {self.average_value:.3f}"
                 if self.average_value
                 else ""
             )
+            self._load_legend_table(self.graph_selector.value)
         self.update()
 
     def _load_dropdown_options(self) -> List[ft.dropdown.Option]:
@@ -164,7 +193,7 @@ class AppUI(ft.UserControl):
                 self.graph_selector,
                 self.data_container,
                 self.graph_image,
-                self.legend_container,
                 self.pie_charts_view,
+                self.legend_container,
             ]
         )
