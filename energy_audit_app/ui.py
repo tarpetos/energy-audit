@@ -59,23 +59,33 @@ class AppUI(ft.UserControl):
             border_radius=ft.border_radius.all(20),
         )
 
+        self.graph_image_column = ft.Row(
+            [self.graph_image],
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+
         self.pie_charts_view = ft.GridView(
             runs_count=3,
-            spacing=5,
         )
 
         self.legend_table = ft.DataTable()
+
         self.legend_average_value = ft.Text()
         self.average_value_row = ft.Row(
             controls=[self.legend_average_value],
             alignment=ft.MainAxisAlignment.CENTER,
         )
+
+        # self.average_value_column = ft.Column(
+        #     controls=[self.legend_average_value],
+        #     horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        # )
+
         self.legend_container = ft.Column(
             [self.average_value_row, self.legend_table],
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
-        page.on_resize = self._on_window_resize
         self._is_ascending = True
 
     def _on_window_resize(self, event: ft.ControlEvent) -> None:
@@ -192,7 +202,7 @@ class AppUI(ft.UserControl):
             [
                 self.graph_selector,
                 self.data_container,
-                self.graph_image,
+                self.graph_image_column,
                 self.pie_charts_view,
                 self.legend_container,
             ]

@@ -15,7 +15,7 @@ class EnergyAuditApp:
         page.padding = PADDING
         page.vertical_alignment = ft.MainAxisAlignment.CENTER
         page.horizontal_alignment = ft.MainAxisAlignment.CENTER
-        page.dark_theme = ft.Theme(color_scheme_seed=ft.colors.INDIGO_ACCENT)
+        page.theme_mode = ft.ThemeMode.LIGHT
         page.scroll = ft.ScrollMode.AUTO
         page.update()
         app = AppUI(page)
