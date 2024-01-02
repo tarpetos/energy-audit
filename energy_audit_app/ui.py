@@ -15,15 +15,15 @@ class AppUI(ft.UserControl):
         "electric_energy": "Графік середньодобового споживання електроенергії",
         "heat_energy": "Графік середньодобового споживання теплової енергії",
         "electric_to_heat_usage": "Графік середнього питомого споживання "
-        "електроенергії на виробництво теплової енергії",
+                                  "електроенергії на виробництво теплової енергії",
         "gas_energy": "Графік середньодобового споживання газу",
         "gas_to_heat_usage": "Графік середнього питомого споживання "
-        "газу на виробництво теплової енергії",
+                             "газу на виробництво теплової енергії",
         "water_usage": "Графік середньодобового споживання води",
         "water_to_electric_usage": "Графік середнього питомого споживання "
-        "води на виробництво електроенергії",
+                                   "води на виробництво електроенергії",
         "water_to_heat_usage": "Графік середнього питомого споживання "
-        "води на виробництво теплової енергії",
+                               "води на виробництво теплової енергії",
         "energy_costs1": "Графік витрати (млн. доларів) на електроенергію, газ та воду",
         "energy_costs2": "Графік витрати (%) на електроенергію, газ та воду",
         "average_electric_costs": "Графік середньозваженого значення тарифів на електроенергію",
@@ -56,22 +56,20 @@ class AppUI(ft.UserControl):
             src=GRAPHS_PATH,
             error_content=ft.Text(""),
             fit=ft.ImageFit.FILL,
-            border_radius=ft.border_radius.all(20),
+            # border_radius=ft.border_radius.all(20),
         )
 
-        self.graph_image_container = ft.Row(
-            [self.graph_image],
-            alignment=ft.MainAxisAlignment.CENTER,
+        # self.graph_image_container = ft.Row(
+        #     [self.graph_image],
+        #     alignment=ft.MainAxisAlignment.CENTER,
+        # )
+
+        self.graph_image_container = ft.Container(
+            content=ft.Column(controls=[self.graph_image], horizontal_alignment=ft.CrossAxisAlignment.STRETCH),
         )
 
-        self.graph_image_container = ft.Column(
-            controls=[self.graph_image],
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
-
-        self.pie_charts_view = ft.GridView(
-            runs_count=3,
-        )
+        self.pie_charts_view = ft.GridView(runs_count=3)
+        self.pie_charts_container = ft.Container(content=self.pie_charts_view)
 
         self.legend_table = ft.DataTable()
 
@@ -116,9 +114,9 @@ class AppUI(ft.UserControl):
 
     @staticmethod
     def _build_table(
-        table: ft.DataTable,
-        df: pd.DataFrame,
-        on_sort: Optional[Callable] = None,
+            table: ft.DataTable,
+            df: pd.DataFrame,
+            on_sort: Optional[Callable] = None,
     ) -> None:
         table.border = ft.border.all(1, "black")
         table.vertical_lines = ft.border.BorderSide(1, "black")
@@ -155,7 +153,7 @@ class AppUI(ft.UserControl):
     def _on_selector_change(self, event: ft.ControlEvent) -> None:
         self.graph_image.src = GRAPHS_PATH
         self.legend_average_value.value = ""
-        self.data_table.columns = self.legend_table.columns = self.data_table.border = self.legend_table.border = None
+        self.data_table.columns = self.legend_table.columns = self.data_table.border = self.legend_table.border = self.graph_image_container.border = self.pie_charts_container.border = None
         self.pie_charts_view.controls = None
 
         if self.graph_selector.value == self.INITIAL_DATA:
@@ -167,6 +165,7 @@ class AppUI(ft.UserControl):
                 self.data_table, df, on_sort=lambda e: self._sort_cols(e, df)
             )
         elif self.graph_selector.value == self.PIE_CHART:
+            self.pie_charts_container.border = ft.border.all(1, "black")
             graph_list = os.listdir(GRAPHS_PATH)
             pie_charts_list = sorted(
                 [graph for graph in graph_list if graph.startswith(self.PIE_CHART)]
@@ -181,7 +180,7 @@ class AppUI(ft.UserControl):
                 )
             self._load_legend_table(f"{self.PIE_CHART}_values")
         else:
-
+            self.graph_image_container.border = ft.border.all(1, "black")
             self.graph_image.src = os.path.join(
                 GRAPHS_PATH, f"{self.graph_selector.value}.png"
             )
@@ -203,7 +202,7 @@ class AppUI(ft.UserControl):
                 self.graph_selector,
                 self.data_container,
                 self.graph_image_container,
-                self.pie_charts_view,
+                self.pie_charts_container,
                 self.legend_container,
             ]
         )
