@@ -20,3 +20,10 @@ or
 ```sh
 python main.py
 ```
+
+* ***Creating binary or EXE file***
+
+The executable file will be located in `dist` folder created by `PyInstaller`
+```sh
+pyinstaller main.spec
+```

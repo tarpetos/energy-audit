@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Tuple, List
 
 from PyQt5.QtGui import QPixmap
@@ -18,8 +19,16 @@ from PyQt5.QtWidgets import (
 from .image_to_docx_converter import DOCXConverter
 
 
+def get_dist_path() -> str:
+    data_path = os.path.join("energy_audit_app", "graphs_data")
+
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, data_path)
+    return os.path.join(data_path)
+
+
 class EnergyAuditWindow(QMainWindow):
-    GRAPHS_PATH = os.path.join("energy_audit_app", "data", "graphs")
+    GRAPHS_PATH = get_dist_path()
     AVERAGE_VALUES_GRAPHS_PATH = os.path.join(GRAPHS_PATH, "average_values")
     SPECIFIC_VALUES_GRAPHS_PATH = os.path.join(GRAPHS_PATH, "specific_values")
     ENERGY_BALANCE_GRAPHS_PATH = os.path.join(GRAPHS_PATH, "energy_balance")
@@ -158,7 +167,7 @@ class EnergyAuditWindow(QMainWindow):
                 comments = file.readlines()
 
             for i, (graph_name, comment) in enumerate(
-                zip(graph_names, comments), start=1
+                    zip(graph_names, comments), start=1
             ):
                 graph_name = graph_name.strip().replace("\\n", "\n")
                 comment = comment.strip().replace("\\n", "\n")
@@ -172,7 +181,7 @@ class EnergyAuditWindow(QMainWindow):
         self._convert_into_path(graph_data)
 
     def _convert_into_path(
-        self, static_data: List[Tuple[str, List[Tuple[str, str, str]]]]
+            self, static_data: List[Tuple[str, List[Tuple[str, str, str]]]]
     ) -> None:
         image_to_docx_converter = DOCXConverter()
         options = QFileDialog.Options()
