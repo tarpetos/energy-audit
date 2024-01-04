@@ -11,16 +11,6 @@
 pip install -r requirements.txt
 ```
 
-* ***For Linux users:*** Install additional dependencies for running `Flet` applications:
-
-```sh
-sudo apt update
-```
-
-```sh
-sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
-```
-
 * ***Run application:***
 
 ```sh
@@ -29,4 +19,11 @@ python3 main.py
 or
 ```sh
 python main.py
+```
+
+* ***Creating binary or EXE file***
+
+The executable file will be located in `dist` folder created by `PyInstaller`
+```sh
+pyinstaller main.spec
 ```
