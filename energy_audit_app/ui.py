@@ -1,208 +1,193 @@
 import os
-import pandas as pd
-import flet as ft
+from typing import Tuple, List
 
-from typing import List, Optional, Callable
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QScrollArea,
+    QGridLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QHBoxLayout,
+    QFileDialog,
+)
 
-from .constants import GRAPHS_PATH, TABLES_PATH
+from .image_to_docx_converter import DOCXConverter
 
 
-class AppUI(ft.UserControl):
-    INITIAL_DATA = "initial_data"
-    PIE_CHART = "pie_chart"
-    OPTION_DICT = {
-        INITIAL_DATA: "Первинна інформація",
-        "electric_energy": "Графік середньодобового споживання електроенергії",
-        "heat_energy": "Графік середньодобового споживання теплової енергії",
-        "electric_to_heat_usage": "Графік середнього питомого споживання "
-                                  "електроенергії на виробництво теплової енергії",
-        "gas_energy": "Графік середньодобового споживання газу",
-        "gas_to_heat_usage": "Графік середнього питомого споживання "
-                             "газу на виробництво теплової енергії",
-        "water_usage": "Графік середньодобового споживання води",
-        "water_to_electric_usage": "Графік середнього питомого споживання "
-                                   "води на виробництво електроенергії",
-        "water_to_heat_usage": "Графік середнього питомого споживання "
-                               "води на виробництво теплової енергії",
-        "energy_costs1": "Графік витрати (млн. доларів) на електроенергію, газ та воду",
-        "energy_costs2": "Графік витрати (%) на електроенергію, газ та воду",
-        "average_electric_costs": "Графік середньозваженого значення тарифів на електроенергію",
-        "average_heat_costs": "Графік середньозваженого значення тарифів на теплову енергію",
-        "average_gas_costs": "Графік середньозваженого значення тарифів на газ",
-        "average_water_costs": "Графік середньозваженого значення тарифів на воду",
-        "energy_sells1": "Обсяги продажів (млн доларів) електричної та теплової енергії",
-        "energy_sells2": "Обсяги продажів (%) електричної та теплової енергії",
-        PIE_CHART: "Зведений енергобаланс витрат на електроенергію, газ та воду (млн доларів)",
-    }
+class EnergyAuditWindow(QMainWindow):
+    GRAPHS_PATH = os.path.join("energy_audit_app", "data", "graphs")
+    AVERAGE_VALUES_GRAPHS_PATH = os.path.join(GRAPHS_PATH, "average_values")
+    SPECIFIC_VALUES_GRAPHS_PATH = os.path.join(GRAPHS_PATH, "specific_values")
+    ENERGY_BALANCE_GRAPHS_PATH = os.path.join(GRAPHS_PATH, "energy_balance")
+    IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+    DOC_EXTENSIONS = (".docx", ".doc")
+    NAMES_FILE = "names.txt"
+    COMMENTS_FILE = "comments.txt"
 
-    def __init__(self, page: ft.Page) -> None:
+    def __init__(self, title: str, sizes: Tuple[int, int, int, int]) -> None:
         super().__init__()
+        self.setWindowTitle(title)
+        self.setGeometry(*sizes)
 
-        self.graph_selector = ft.Dropdown(
-            label="Селектор",
-            hint_text="Виберіть опцію для відображення",
-            options=self._load_dropdown_options(),
-            autofocus=True,
-            on_change=self._on_selector_change,
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
+
+        self.top_layout = QHBoxLayout()
+        locality_label = QLabel("Енергетичний аудит міста **********")
+        self.top_layout.addWidget(locality_label)
+
+        self.average_values_button = QPushButton("Первинна інформація")
+        self.average_values_button.clicked.connect(
+            lambda: self.load_data_from_path(self.AVERAGE_VALUES_GRAPHS_PATH, 270)
         )
+        self.top_layout.addWidget(self.average_values_button)
 
-        self.data_table = ft.DataTable()
-        self.data_container = ft.Column(
-            [self.data_table],
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        self.specific_values_button = QPushButton("Питоме споживання")
+        self.specific_values_button.clicked.connect(
+            lambda: self.load_data_from_path(self.SPECIFIC_VALUES_GRAPHS_PATH, 270)
         )
+        self.top_layout.addWidget(self.specific_values_button)
 
-        self.graph_image = ft.Image(
-            src=GRAPHS_PATH,
-            error_content=ft.Text(""),
-            fit=ft.ImageFit.FILL,
-            # border_radius=ft.border_radius.all(20),
+        self.energy_balance_button = QPushButton("Енергетичний баланс")
+        self.energy_balance_button.clicked.connect(
+            lambda: self.load_data_from_path(self.ENERGY_BALANCE_GRAPHS_PATH, 470)
         )
+        self.top_layout.addWidget(self.energy_balance_button)
 
-        # self.graph_image_container = ft.Row(
-        #     [self.graph_image],
-        #     alignment=ft.MainAxisAlignment.CENTER,
-        # )
+        self.report_button = QPushButton("Звіт")
+        self.report_button.clicked.connect(self.get_docx)
+        self.top_layout.addWidget(self.report_button)
 
-        self.graph_image_container = ft.Container(
-            content=ft.Column(controls=[self.graph_image], horizontal_alignment=ft.CrossAxisAlignment.STRETCH),
-        )
+        self.main_layout.addLayout(self.top_layout)
 
-        self.pie_charts_view = ft.GridView(runs_count=3)
-        self.pie_charts_container = ft.Container(content=self.pie_charts_view)
+        self.scroll_area = QScrollArea(self.central_widget)
+        self.scroll_area.setWidgetResizable(True)
+        self.main_layout.addWidget(self.scroll_area)
 
-        self.legend_table = ft.DataTable()
+        self.scroll_area_widget = QWidget()
+        self.scroll_area.setWidget(self.scroll_area_widget)
+        self.grid_layout = QGridLayout(self.scroll_area_widget)
 
-        self.legend_average_value = ft.Text()
-        # self.average_value_container = ft.Row(
-        #     controls=[self.legend_average_value],
-        #     alignment=ft.MainAxisAlignment.CENTER,
-        # )
+        self.scroll_area.setWidget(self.scroll_area_widget)
 
-        self.legend_container = ft.Column(
-            [self.legend_table],
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
-
-        self._is_ascending = True
-
-    def _calculate_average(self, file_name: str) -> Optional[float]:
-        csv_path = os.path.abspath(
-            os.path.join(TABLES_PATH, "with_average", f"{file_name}.csv")
-        )
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path)
-            self._load_default_tooltip(df)
-            return df.iloc[-1, 1:].mean()
-        self.graph_image.tooltip = None
-        return None
-
-    def _load_legend_table(self, file_name: str) -> None:
-        csv_average_path = os.path.abspath(
-            os.path.join(TABLES_PATH, "with_average", f"{file_name}.csv")
-        )
-        csv_default_path = os.path.abspath(
-            os.path.join(TABLES_PATH, f"{file_name}.csv")
-        )
-        if os.path.exists(csv_average_path):
-            df = pd.read_csv(csv_average_path, header=0)
-        else:
-            df = pd.read_csv(csv_default_path, header=0)
-
-        df = df.round(4)
-        self._build_table(self.legend_table, df)
+        self.load_and_display_graphs(self.AVERAGE_VALUES_GRAPHS_PATH, 270)
 
     @staticmethod
-    def _build_table(
-            table: ft.DataTable,
-            df: pd.DataFrame,
-            on_sort: Optional[Callable] = None,
+    def clear_layout(layout):
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+    def load_and_display_graphs(self, data_path, fixed_row_height):
+        graph_names_file = os.path.join(data_path, self.NAMES_FILE)
+        with open(graph_names_file, "r", encoding="utf-8") as file:
+            graph_names = file.readlines()
+
+        comments_file = os.path.join(data_path, self.COMMENTS_FILE)
+        with open(comments_file, "r", encoding="utf-8") as file:
+            comments = file.readlines()
+
+        self.grid_layout.setColumnStretch(0, 1)
+        self.grid_layout.setColumnStretch(1, 6)
+        self.grid_layout.setColumnStretch(2, 3)
+
+        for i, (graph_name, comment) in enumerate(zip(graph_names, comments), start=1):
+            graph_name = graph_name.strip().replace("\\n", "\n")
+            graph_name_label = QLabel(graph_name)
+            graph_name_label.setWordWrap(True)
+            graph_name_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            graph_name_label.setFixedHeight(fixed_row_height)
+            self.grid_layout.addWidget(graph_name_label, i, 0)
+
+            image_path = os.path.join(data_path, f"{i}.png")
+            image_label = QLabel()
+            image_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+            image_label.setFixedHeight(fixed_row_height)
+            image_label.setScaledContents(True)
+
+            if os.path.exists(image_path):
+                pixmap = QPixmap(image_path)
+                image_label.setPixmap(pixmap)
+                image_label.setProperty("imagePath", image_path)
+            else:
+                image_label.setText("Image not found")
+
+            self.grid_layout.addWidget(image_label, i, 1)
+
+            comment = comment.strip().replace("\\n", "\n")
+            comment_label = QLabel(comment)
+            comment_label.setWordWrap(True)
+            comment_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            comment_label.setFixedHeight(fixed_row_height)
+            self.grid_layout.addWidget(comment_label, i, 2)
+
+    def load_data_from_path(self, data_path, fixed_row_height):
+        self.clear_layout(self.grid_layout)
+        self.load_and_display_graphs(data_path, fixed_row_height)
+
+    def get_docx(self) -> None:
+        graph_categories = [
+            (
+                self.AVERAGE_VALUES_GRAPHS_PATH,
+                "1. Середньодобові значення споживання електроенергії, газу та води",
+            ),
+            (
+                self.SPECIFIC_VALUES_GRAPHS_PATH,
+                "2. Середні за рік значення питомого споживання електроенергії, газу та води",
+            ),
+            (self.ENERGY_BALANCE_GRAPHS_PATH, "3. Енергетичний баланс і тарифи"),
+        ]
+
+        graph_data = []
+
+        for category_path, category_title in graph_categories:
+            category_graph_data = []
+            graph_names_file = os.path.join(category_path, self.NAMES_FILE)
+            comments_file = os.path.join(category_path, self.COMMENTS_FILE)
+
+            with open(graph_names_file, "r", encoding="utf-8") as file:
+                graph_names = file.readlines()
+
+            with open(comments_file, "r", encoding="utf-8") as file:
+                comments = file.readlines()
+
+            for i, (graph_name, comment) in enumerate(
+                zip(graph_names, comments), start=1
+            ):
+                graph_name = graph_name.strip().replace("\\n", "\n")
+                comment = comment.strip().replace("\\n", "\n")
+                image_path = os.path.join(category_path, f"{i}.png")
+                if not os.path.exists(image_path):
+                    image_path = "Image not found"
+
+                category_graph_data.append((image_path, graph_name, comment))
+
+            graph_data.append((category_title, category_graph_data))
+        self._convert_into_path(graph_data)
+
+    def _convert_into_path(
+        self, static_data: List[Tuple[str, List[Tuple[str, str, str]]]]
     ) -> None:
-        table.border = ft.border.all(1, "black")
-        table.vertical_lines = ft.border.BorderSide(1, "black")
-        table.horizontal_lines = ft.border.BorderSide(1, "black")
-        table.columns = [
-            ft.DataColumn(ft.Text("" if col_name == "Unnamed: 0" else col_name), on_sort=on_sort)
-            for col_name in df.columns
-        ]
-        table.rows = [
-            ft.DataRow(cells=[ft.DataCell(ft.Text(value)) for value in row])
-            for row in df.values
-        ]
-
-    def _sort_cols(self, event: ft.DataColumnSortEvent, df: pd.DataFrame) -> None:
-        df_sorted = df.sort_values(
-            by=df.columns[event.column_index], ascending=self._is_ascending
-        )
-        self._is_ascending = not self._is_ascending
-        self.data_table.rows = [
-            ft.DataRow(cells=[ft.DataCell(ft.Text(value)) for value in row])
-            for row in df_sorted.values
-        ]
-        self.update()
-
-    def _load_default_tooltip(self, df: pd.DataFrame) -> None:
-        max_val = df.iloc[-1, 1:].max()
-        min_val = df.iloc[-1, 1:].min()
-        self.graph_image.tooltip = (
-            f"Максимальне значення: {max_val:.4f}\n"
-            f"Мінімальне значення: {min_val:.4f}\n"
-            f"Нерівномірність: {max_val / min_val:.4f}"
+        image_to_docx_converter = DOCXConverter()
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save file",
+            "",
+            "Word files(*.docx *.doc)",
+            options=options,
         )
 
-    def _on_selector_change(self, event: ft.ControlEvent) -> None:
-        self.graph_image.src = GRAPHS_PATH
-        self.legend_average_value.value = ""
-        self.data_table.columns = self.legend_table.columns = self.data_table.border = self.legend_table.border = self.graph_image_container.border = self.pie_charts_container.border = None
-        self.pie_charts_view.controls = None
+        user_path, user_extension = os.path.splitext(file_path)
+        if not user_extension or user_extension == ".":
+            file_path = f"{user_path}{self.DOC_EXTENSIONS[0]}"
 
-        if self.graph_selector.value == self.INITIAL_DATA:
-            csv_path = os.path.abspath(
-                os.path.join(TABLES_PATH, f"{self.INITIAL_DATA}.csv")
-            )
-            df = pd.read_csv(csv_path, header=0)
-            self._build_table(
-                self.data_table, df, on_sort=lambda e: self._sort_cols(e, df)
-            )
-        elif self.graph_selector.value == self.PIE_CHART:
-            self.pie_charts_container.border = ft.border.all(1, "black")
-            graph_list = os.listdir(GRAPHS_PATH)
-            pie_charts_list = sorted(
-                [graph for graph in graph_list if graph.startswith(self.PIE_CHART)]
-            )
-            for pie_chart in pie_charts_list:
-                self.pie_charts_view.controls.append(
-                    ft.Image(
-                        src=os.path.join(GRAPHS_PATH, pie_chart),
-                        fit=ft.ImageFit.FILL,
-                        border_radius=ft.border_radius.all(20),
-                    )
-                )
-            self._load_legend_table(f"{self.PIE_CHART}_values")
-        else:
-            self.graph_image_container.border = ft.border.all(1, "black")
-            self.graph_image.src = os.path.join(
-                GRAPHS_PATH, f"{self.graph_selector.value}.png"
-            )
-            self.average_value = self._calculate_average(self.graph_selector.value)
-            self.legend_average_value.value = (
-                f"Середнє значення: {self.average_value:.3f}"
-                if self.average_value
-                else ""
-            )
-            self._load_legend_table(self.graph_selector.value)
-        self.update()
-
-    def _load_dropdown_options(self) -> List[ft.dropdown.Option]:
-        return [ft.dropdown.Option(key=k, text=v) for k, v in self.OPTION_DICT.items()]
-
-    def build(self) -> ft.Column:
-        return ft.Column(
-            [
-                self.graph_selector,
-                self.data_container,
-                self.graph_image_container,
-                self.pie_charts_container,
-                self.legend_container,
-            ]
-        )
+        if os.path.exists(os.path.dirname(file_path)):
+            image_to_docx_converter.convert(file_path, static_data)
